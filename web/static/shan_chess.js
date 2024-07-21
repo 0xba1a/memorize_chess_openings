@@ -6,29 +6,51 @@ import {Chess} from './chess.js';
 
 
 function get_puzzle() {
-    return {
-        "fen": "q3k1nr/1pp1nQpp/3p4/1P2p3/4P3/B1PP1b2/B5PP/5K2 b k - 0 17",
-        "solution": "e8",
-        "color": COLOR.white
-    }
+    fetch('/get_puzzle')
+        .then(response => response.json())
+        .then(data => {
+            console.log(data);
+            puzzle = data;
+            setup_board(data);
+        });
 }
 
-let puzzle = get_puzzle();
-let chess = new Chess(
-    puzzle.fen
-);
+get_puzzle();
+let chess = new Chess();
+let puzzle = null;
 
-const board = new Chessboard(document.getElementById('board'), {
+
+let board = new Chessboard(document.getElementById('board'), {
     assetsUrl: "./node_modules/cm-chessboard/assets/",
-    position: puzzle.fen,
-    style: {pieces: {file: "pieces/staunty.svg"}},
-    orientation: puzzle.color,
+    style: {pieces: {file: "pieces/staunty.svg"}, animationDuration: 300},
     extensions: [
         {class: Markers},
         {class: PromotionDialog},
         {class: Accessibility, props: {visuallyHidden: true}}
     ]
 });
+
+function setup_board(puzzle) {
+    chess.load(puzzle.fen);
+    board.setPosition(puzzle.fen);
+    board.setOrientation(puzzle.orientation == "white" ? COLOR.white : COLOR.black);
+    document.getElementById("title").innerHTML = puzzle.category;
+    document.getElementById("hint_1").innerHTML = puzzle.hint_1;
+    document.getElementById("hint_2").innerHTML = puzzle.hint_2;
+
+    // Make the first move
+    const square_from = puzzle.pre_move[0] + puzzle.pre_move[1];
+    const square_to = puzzle.pre_move[2] + puzzle.pre_move[3];
+    //TODO: Handle Promotion and special moves
+    const move = {from: square_from, to: square_to};
+    //chess.move(move);
+    //board.setPosition(chess.fen());
+    
+    setTimeout(() => {
+        chess.move(move);
+        board.setPosition(chess.fen(), true);
+    }, 500);    
+}
 
 function input_handler(event) {
     console.log(event);
@@ -75,9 +97,21 @@ function input_handler(event) {
     }
 }
 
+// TODO: Animate the move and show result. Then get next puzzle upon user input.
 function update_and_validate(event, puzzle) {
     if (event.legalMove == null) {
         alert("Illegal Move!");
+    }
+    else {
+        const move = event.squareFrom + event.squareTo;
+        if (move == puzzle.solution) {
+            alert("Correct!");
+            get_puzzle();
+        }
+        else {
+            alert("Incorrect!");
+            get_puzzle();
+        }
     }
    return 0;
 }
