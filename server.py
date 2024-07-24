@@ -9,6 +9,12 @@ app = Flask(__name__,
 def index():
     return render_template('index.html')
 
+
+@app.route('/add_new_puzzle')
+def add_new_puzzle():
+    return render_template('add_new_puzzle.html')
+
+
 @app.route('/get_puzzle')
 def get_puzzle():
     puzzle = {
