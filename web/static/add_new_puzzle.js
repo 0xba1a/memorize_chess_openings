@@ -20,11 +20,22 @@ function reset_board() {
         ]
     });
     board.setPosition(chess.fen());
+    board.setOrientation(document.getElementById('orientation').value == 1 ? COLOR.black : COLOR.white);
 }
 
 document.getElementById('orientation').addEventListener('change', () => {
     board.setOrientation(document.getElementById('orientation').value == 1 ? COLOR.black : COLOR.white);
 });
+
+document.getElementById("backspace_button").addEventListener('click', () => {
+    chess.undo();
+    board.setPosition(chess.fen(), true);
+    update_moves_text();
+});
+
+function update_moves_text() {
+    document.getElementById('moves_textarea').value = chess.pgn();
+}
 
 function input_handler(event) {
     console.log(event);
@@ -68,7 +79,7 @@ function input_handler(event) {
             return move_result;
 
         case INPUT_EVENT_TYPE.moveInputFinished:
-            document.getElementById('moves_textarea').value = chess.pgn();
+            update_moves_text();
             return true;
 
         default:
