@@ -1,0 +1,15 @@
+{
+    "configurations": [
+        {
+            "name": "Flask",
+            "type": "python",
+            "request": "launch",
+            "stopOnEntry": false,
+            "program": "${workspaceRoot}/server.py",
+            "envFile": "${workspaceFolder}/.env",
+            "args": [
+                "run"
+            ]
+        }
+    ]
+}

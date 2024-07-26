@@ -2,7 +2,7 @@ import { Chessboard, COLOR, INPUT_EVENT_TYPE } from "./node_modules/cm-chessboar
 import { Markers } from "./node_modules/cm-chessboard/src/extensions/markers/Markers.js";
 import { PromotionDialog } from "./node_modules/cm-chessboard/src/extensions/promotion-dialog/PromotionDialog.js";
 import { Accessibility } from "./node_modules/cm-chessboard/src/extensions/accessibility/Accessibility.js";
-import { Chess } from "./chess.js";
+import { Chess, DEFAULT_POSITION } from "./chess.js";
 
 
 let board = null;
@@ -31,6 +31,36 @@ document.getElementById("backspace_button").addEventListener('click', () => {
     chess.undo();
     board.setPosition(chess.fen(), true);
     update_moves_text();
+});
+
+document.getElementById("submit_button").addEventListener('click', () => {
+    let board_orientation = document.getElementById('orientation').value == 1 ? "black" : "white";
+    let first_move = null;
+    if (board_orientation == "black") {
+        first_move = chess.pgn().split(" ")[1];
+    }
+    fetch('/add_puzzle', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            fen: DEFAULT_POSITION,
+            category: document.getElementById('category_text_input').value,
+            hint_1: "",
+            hint_2: "",
+            pre_move: first_move == null ? "" : first_move,
+            orientation: board_orientation,
+            solution: chess.pgn()
+        })
+    }).then(response => {
+        if (response.ok) {
+            alert(response.text());
+        }
+        else {
+            alert("Failed to add puzzle!");
+        }
+    });
 });
 
 function update_moves_text() {

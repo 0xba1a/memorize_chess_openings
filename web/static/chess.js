@@ -29,7 +29,7 @@
 
 const SYMBOLS = 'pnbrqkPNBRQK'
 
-const DEFAULT_POSITION =
+export const DEFAULT_POSITION =
   'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
 const TERMINATION_MARKERS = ['1-0', '0-1', '1/2-1/2', '*']
