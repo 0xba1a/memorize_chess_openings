@@ -2,7 +2,7 @@ from flask import Flask, render_template, jsonify, request
 import json
 import threading
 from fsrs import *
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import chess
 
 
@@ -171,6 +171,27 @@ def add_question(puzzle):
         add_question_to_db(question)
 
 
+def get_next_puzzle(names):
+    with open("db/questions_db.json") as questions_db_file:
+        questions_db = json.load(questions_db_file)
+        
+    for name in names:
+        if name in questions_db:
+            for question in questions_db[name]:
+                card = Card.from_dict(question["card"])
+                if card.due - datetime.now(timezone.utc) < 0:
+                    return question
+    if names:
+        return None
+    
+    for name in questions_db.keys():
+        for question in questions_db[name]:
+            card = Card.from_dict(question["card"])
+            if card.due - datetime.now(timezone.utc) < timedelta(seconds=0):
+                return question
+    return None
+
+
 app = Flask(__name__,
             static_url_path='', 
             static_folder='web/static',
@@ -223,17 +244,9 @@ def add_puzzle():
     return "Puzzle Added Successfully!"
 
 
-@app.route('/get_puzzle')
+@app.route('/get_puzzle', methods=['POST'])
 def get_puzzle():
-    puzzle = {
-        "category": "Italian_Game Italian_Game_Classical_Variation",
-        "fen": "q3k1nr/1pp1nQpp/3p4/1P2p3/4P3/B1PP1b2/B5PP/5K2 b k - 0 17",
-        "pre_move": "e8d7",
-        "solution": "a2e6",
-        "hint_1": "Mate in 2",
-        "hint_2": "Use Bishop",
-        "orientation": "white"
-    }
-    return jsonify(puzzle)
+    names = request.get_json()["names"]
+    return jsonify(get_next_puzzle(names))
 
 app.run(port=5000)

@@ -5,12 +5,36 @@ import {Accessibility} from "./node_modules/cm-chessboard/src/extensions/accessi
 import {Chess} from './chess.js';
 
 
+function show_alert(message, type) {
+    const alertPlaceholder = document.getElementById('alertPlaceholder');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = [
+        `<div class="alert alert-${type} alert-dismissible text-center" role="alert">`,
+        `   <div>"${message}"</div>`,
+        '   <button type="button" class="btn btn-primary mt-2" data-bs-dismiss="alert" aria-label="Close">Next</button>',
+        '</div>'
+    ].join('');
+
+    alertPlaceholder.append(wrapper);
+}
+
+
 function get_puzzle() {
-    fetch('/get_puzzle')
+    fetch('/get_puzzle', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({"names": []}),
+        })
         .then(response => response.json())
         .then(data => {
             console.log(data);
             puzzle = data;
+            if (data == null || data == "" || data == {}) {
+                show_alert("No more puzzles available!", "info");
+                return;
+            }
             setup_board(data);
         });
 }
@@ -18,6 +42,7 @@ function get_puzzle() {
 get_puzzle();
 let chess = new Chess();
 let puzzle = null;
+let nth_move = 1;
 
 
 let board = new Chessboard(document.getElementById('board'), {
@@ -64,7 +89,9 @@ function input_handler(event) {
 
             if (move_result) {
                 event.chessboard.state.moveInputProcess.then(() => {
-                    event.chessboard.setPosition(chess.fen(), true);
+                    event.chessboard.setPosition(chess.fen(), true).then(() => {
+                        update_and_validate(event, puzzle);
+                    });
                 });
             }
             else {
@@ -75,21 +102,32 @@ function input_handler(event) {
                             console.log("promotion result: ", result);
                             if (result.type === PROMOTION_DIALOG_RESULT_TYPE.pieceSelected) {
                                 chess.move({from: event.squareFrom, to: event.squareTo, promotion: result.piece.charAt(1)});
-                                event.chessboard.setPosition(chess.fen(), true);
+                                event.chessboard.setPosition(chess.fen(), true).then(() => {
+                                    update_and_validate(event, puzzle);
+                                });
                             }
                             else {
                                 event.chessboard.enableMoveInput(input_handler, puzzle.color);
-                                event.chessboard.setPosition(chess.fen(), true);
+                                event.chessboard.setPosition(chess.fen(), true).then(() => {
+                                    update_and_validate(event, puzzle);
+                                });
                             }
                         });
                         return true;
                     }
                 }
             }
-            return move_result;
+            return !!move_result;
 
         case INPUT_EVENT_TYPE.moveInputFinished:
-            update_and_validate(event, puzzle);
+            if (event.legalMove) {
+                event.chessboard.disableMoveInput();
+            }
+            else {
+                show_alert("Illegal move!", "danger");
+            }
+            // Disable input until the result is processed
+            // update_and_validate(event, puzzle);
             return true;
 
         default:
@@ -97,23 +135,73 @@ function input_handler(event) {
     }
 }
 
-// TODO: Animate the move and show result. Then get next puzzle upon user input.
-function update_and_validate(event, puzzle) {
-    if (event.legalMove == null) {
-        alert("Illegal Move!");
+function get_nth_move_solution(puzzle, nth_move) {
+    let moves = puzzle.solution.split(" ");
+    if (moves.length == 1) {
+        return moves[0];
     }
     else {
-        const move = event.squareFrom + event.squareTo;
-        if (move == puzzle.solution) {
-            alert("Correct!");
-            get_puzzle();
+        if (puzzle.color == "white") {
+            // 1, 4, 7, 10, 13, 16, 19, 22, 25, 28
+            position = (nth_move-1) * 3 + 1;
         }
         else {
-            alert("Incorrect!");
-            get_puzzle();
+            // 2, 5, 8, 11, 14, 17, 20, 23, 26, 29
+            position = (nth_move-1) * 3 + 2;
+        }
+        return moves[position];
+    }
+}
+
+function get_nth_premove(puzzle, nth_move) {
+    let moves = puzzle.solution.split(" ");
+    if (moves.length == 1) {
+        return null;
+    }
+    else {
+        if (puzzle.color == "white") {
+            if (nth_move == 1) {
+                return null;
+            }
+            // 2, 5, 8, 11, 14, 17, 20, 23, 26, 29
+            position = ((nth_move-1) * 3) - 1;
+        }
+        else {
+            // 1, 4, 7, 10, 13, 16, 19, 22, 25, 28
+            position = (nth_move-1) * 3 + 1;
+        }
+        return moves[position];
+    }
+}
+
+
+// TODO: Animate the move and show result. Then get next puzzle upon user input.
+function update_and_validate(event, puzzle) {
+    const move = event.squareFrom + event.squareTo;
+    let moves = chess.pgn().split(" ");
+    let last_move = moves[moves.length - 1];
+    
+    let solution = get_nth_move_solution(puzzle, nth_move);
+
+    if (last_move == solution) {
+        nth_move++;
+        let next_move = get_nth_premove(puzzle, nth_move);
+        if (next_move == null) {
+            show_alert("Correct!", "success");
+            //get_puzzle();
+        }
+        else {
+            chess.move(next_move);
+            board.setPosition(chess.fen(), true);
         }
     }
-   return 0;
+    else {
+        show_alert("Incorrect!", "danger");
+        get_puzzle();
+    }
+
+    event.chessboard.enableMoveInput(input_handler);
+    return 0;
 }
 
 board.enableMoveInput(input_handler);
