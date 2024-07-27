@@ -55,7 +55,7 @@ document.getElementById("submit_button").addEventListener('click', () => {
         })
     }).then(response => {
         if (response.ok) {
-            alert(response.text());
+            alert("Puzzle Added Successfully!");
         }
         else {
             alert("Failed to add puzzle!");
