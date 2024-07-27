@@ -137,10 +137,16 @@ def is_duplicate_question(question, questions_in_db):
 
 
 def add_question_to_db(question):
+    with open("db/question_id.json", "r") as question_id_file:
+        question_id = json.load(question_id_file)
+        question_id["id"] += 1
+        
+    question["id"] = question_id["id"]
+
     with open("db/questions_db.json", "r") as questions_db_file:
         questions_db = json.load(questions_db_file)
         
-    key = question["category"].replace(" ", "_").title()
+    key = question["category"].title()
     
     if key in questions_db:
         if is_duplicate_question(question, questions_db[key]):
@@ -152,6 +158,9 @@ def add_question_to_db(question):
         
     with open("db/questions_db.json", "w") as questions_db_file:
         json.dump(questions_db, questions_db_file)
+        
+    with open("db/question_id.json", "w") as question_id_file:
+        json.dump(question_id, question_id_file)
     
 
 def add_question(puzzle):
@@ -215,7 +224,7 @@ def add_puzzle():
     puzzles_db = {}
     is_new_puzzle = True
     
-    key = data["category"].replace(" ", "_").title()
+    key = data["category"].title()
     print(key)
     
     with open("db/puzzles_db.json", "r") as puzzles_db_file:
