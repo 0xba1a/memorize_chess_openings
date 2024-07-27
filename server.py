@@ -221,7 +221,7 @@ def get_next_puzzle(names):
 
 
 def calculate_rating(result, time_taken):
-    if result == "correct":
+    if result:
         if time_taken < 60:
             return Rating.Easy
         elif time_taken < 120:
@@ -232,6 +232,12 @@ def calculate_rating(result, time_taken):
         return Rating.Again
 
 
+def calculate_time_per_move(solution, time_taken):
+    moves = solution.split(". ")
+    number_of_moves = len(moves)
+    return time_taken / number_of_moves
+
+
 def update_result_in_db(id, result, time_taken):
     with open("db/questions_db.json", "r") as questions_db_file:
         questions_db = json.load(questions_db_file)
@@ -240,7 +246,8 @@ def update_result_in_db(id, result, time_taken):
         for question in questions_db[key]:
             if question["id"] == id:
                 card = Card.from_dict(question["card"])
-                rating = calculate_rating(result, time_taken)
+                time_taken_per_move = calculate_time_per_move(question["solution"], time_taken)
+                rating = calculate_rating(result, time_taken_per_move)
                 card, review_log = FSRS().review_card(card, rating)
                 question["card"] = card.to_dict()
                 break

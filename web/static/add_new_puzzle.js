@@ -91,7 +91,7 @@ function input_handler(event) {
                 let possible_moves = chess.moves({ square: event.squareFrom, verbose: true });
                 for (const possible_move of possible_moves) {
                     if (possible_move.promotion && possible_move.to === event.squareTo) {
-                        let color = document.getElementById('orientation').value == 1 ? COLOR.black : COLOR.black;
+                        let color = document.getElementById('orientation').value == 1 ? COLOR.black : COLOR.white;
                         event.chessboard.showPromotionDialog(event.squareTo, color, (result) => {
                             console.log("promotion result: ", result);
                             if (result.type === PROMOTION_DIALOG_RESULT_TYPE.pieceSelected) {
