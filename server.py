@@ -1,3 +1,4 @@
+import random
 from flask import Flask, render_template, jsonify, request
 import json
 import threading
@@ -195,21 +196,28 @@ def get_next_puzzle(names):
     with open("db/questions_db.json") as questions_db_file:
         questions_db = json.load(questions_db_file)
         
+    questions = []
+        
     for name in names:
         if name in questions_db:
             for question in questions_db[name]:
                 card = Card.from_dict(question["card"])
                 if card.due - datetime.now(timezone.utc) < 0:
-                    return question
+                    questions.append(question)
     if names:
-        return None
+        if not questions:
+            return None
+        return questions[random.randint(0, len(questions)-1)]
     
     for name in questions_db.keys():
         for question in questions_db[name]:
             card = Card.from_dict(question["card"])
             if card.due - datetime.now(timezone.utc) < timedelta(seconds=0):
-                return question
-    return None
+                questions.append(question)
+                
+    if not questions:
+        return None
+    return questions[random.randint(0, len(questions)-1)]
 
 
 def calculate_rating(result, time_taken):
