@@ -322,4 +322,4 @@ def update_result():
     update_result_in_db(data["id"], data["result"], data["time_taken"])
     return "Result Updated Successfully!"
 
-app.run(port=5000)
+app.run(host="0.0.0.0", port=5000)
