@@ -64,17 +64,9 @@ function setup_board(puzzle) {
     document.getElementById("title").innerHTML = puzzle.category;
     document.getElementById("hint_1").innerHTML = puzzle.hint_1;
     document.getElementById("hint_2").innerHTML = puzzle.hint_2;
-
-    // Make the first move
-    const square_from = puzzle.pre_move[0] + puzzle.pre_move[1];
-    const square_to = puzzle.pre_move[2] + puzzle.pre_move[3];
-    //TODO: Handle Promotion and special moves
-    const move = {from: square_from, to: square_to};
-    //chess.move(move);
-    //board.setPosition(chess.fen());
     
     setTimeout(() => {
-        chess.move(move);
+        chess.move(puzzle.pre_move);
         board.setPosition(chess.fen(), true);
     }, 500);    
 }
@@ -148,8 +140,8 @@ function get_nth_move_solution(puzzle, nth_move) {
             position = (nth_move-1) * 3 + 1;
         }
         else {
-            // 2, 5, 8, 11, 14, 17, 20, 23, 26, 29
-            position = (nth_move-1) * 3 + 2;
+            // 0, 3, 6, 9, 12, 15, 18, 21, 24, 27
+            position = (nth_move-1) * 3;
         }
         return moves[position];
     }
@@ -166,12 +158,14 @@ function get_nth_premove(puzzle, nth_move) {
             if (nth_move == 1) {
                 return null;
             }
+            // solution: "1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 Nxe4 5. Nxe4 d5"
             // 2, 5, 8, 11, 14, 17, 20, 23, 26, 29
             position = ((nth_move-1) * 3) - 1;
         }
         else {
-            // 1, 4, 7, 10, 13, 16, 19, 22, 25, 28
-            position = (nth_move-1) * 3 + 1;
+            // solution: "e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 Nxe4 5. Nxe4 d5"
+            // 2, 5, 8, 11, 14, 17, 20, 23, 26, 29
+            position = (nth_move-1) * 3 - 1;
         }
         return moves[position];
     }

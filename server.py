@@ -7,11 +7,8 @@ import chess
 
 
 def get_nth_move(fen, solution, player, n):
-    # PGN: 1.e4 e5 2. Nf3 Nf6 3. Nxe5 Nxe4 4. Qe2 Nf6 6. Nc6+
-    # Black
-    # Move: 1->1, 2->4, 3->7, 4->10, 5->13
-    # PreMove: 1->0, 2->3, -> 6, 4->9, 5->12
-    # After Split: ['1', 'e4 e5', 'Nf3 Nf6', 'Nxe5 Nxe4', 'Qe2 Nf6', 'Nc6+']
+    # PGN: 1. e4 e5 2. Nf3 Nf6 3. Nxe5 Nxe4 4. Qe2 Nf6 5. Nc6+
+    # moves = ['1', 'e4 e5 2', 'Nf3 Nf6 3', 'Nxe5 Nxe4 4', 'Qe2 Nf6 5', 'Nc6+']
     board = chess.Board()
     board.set_fen(fen)
     moves = solution.split(". ")
@@ -22,21 +19,21 @@ def get_nth_move(fen, solution, player, n):
         return fen, pre_move, move
         
     if player == "black":
-        for i in range(1, n+1):
-            board.push_san(moves[i].split(" ")[0])
-            board.push_san(moves[i].split(" ")[1])
-        board.push_san(moves[n+1].split(" ")[0])
-        move = moves[i+1].split(" ")[1]
-        pre_move = moves[i+1].split(" ")[0]
-        fen = board.fen()
-        return fen, pre_move, move
-    else:
         for i in range(1, n):
             board.push_san(moves[i].split(" ")[0])
             board.push_san(moves[i].split(" ")[1])
-        # i = n-1 [Python works like this]
-        move = moves[i+1].split(" ")[0]
-        pre_move = moves[i].split(" ")[1]
+        pre_move = moves[n].split(" ")[0]
+        move = moves[n].split(" ")[1]
+        fen = board.fen()
+        return fen, pre_move, move
+    else:
+        for i in range(1, n-1):
+            board.push_san(moves[i].split(" ")[0])
+            board.push_san(moves[i].split(" ")[1])
+        board.push_san(moves[n-1].split(" ")[0])
+        pre_move = moves[n-1].split(" ")[1]
+        move = moves[n].split(" ")[0]
+        
         fen = board.fen()
         return fen, pre_move, move        
         
@@ -62,6 +59,18 @@ def split_puzzle_into_questions(puzzle):
             "orientation": player
         })
         
+    if player == "white":
+        nth_fen, pre_move, move = get_nth_move(fen, solution, player, number_of_moves)
+        questions.append({
+            "category": category,
+            "fen": nth_fen,
+            "pre_move": pre_move,
+            "solution": move,
+            "hint_1": "",
+            "hint_2": "",
+            "orientation": player
+        })
+        
     return questions
 
 
@@ -77,30 +86,31 @@ def get_nth_sequence(fen, solution, player, n):
     
     if player == "black":
         # PGN: 1. e4 e5 2. Nf3 Nf6 3. Nxe5 Nxe4 4. Qe2 Nf6 5. Nc6+
-        # Black
-        # Move: 1->1, 2->4, 3->7, 4->10, 5->13
-        # PreMove: 1->0, 2->3, -> 6, 4->9, 5->12
-        # After Split: ['1', 'e4 e5', '2', 'Nf3 Nf6', '3', 'Nxe5 Nxe4', '4', 'Qe2 Nf6', '5', 'Nc6+']
+        # moves = ['1', 'e4 e5 2', 'Nf3 Nf6 3', 'Nxe5 Nxe4 4', 'Qe2 Nf6 5', 'Nc6+']
+        # 3rd Pre Move: Nxe5, 3rd Move: Nxe4 4. Qe2 Nf6 5. Nc6+
         for i in range (1, n):
             board.push_san(moves[i].split(" ")[0])
             board.push_san(moves[i].split(" ")[1])
         
-        split_space = (n * 3) + 1
+        pre_move = moves[n].split(" ")[0]
+        # solution.split(" ") --> ['1.', 'e4', 'e5', '2.', 'Nf3', 'Nf6', '3.', 'Nxe5', 'Nxe4', '4.', 'Qe2', 'Nf6', '5.', 'Nc6+']
+        # 1->2, 2->5, 3->8, 4->11, 5->14
+        split_space = (n * 3) - 1
         move = " ".join(solution.split(" ")[split_space:])
-        pre_move = solution.split(" ")[split_space-1]
         return board.fen(), pre_move, move
     else:
         # PGN: 1. e4 e5 2. Nf3 Nf6 3. Nxe5 Nxe4 4. Qe2 Nf6 5. Nc6+
-        # moves = ['1', 'e4 e5', '2', 'Nf3 Nf6', '3', 'Nxe5 Nxe4', '4', 'Qe2 Nf6', '5', 'Nc6+']
-        # White
-        # Move: 2->3, 3->6, 4->9, 5->12
-        # PreMove: 2->1, -> 4, 4->7, 5->10
-        # After Split: ['1', 'e4 e5', '2', 'Nf3 Nf6', '3', 'Nxe5 Nxe4', '4', 'Qe2 Nf6', '5', 'Nc6+']
-        for i in range (1, n):
+        # moves = ['1', 'e4 e5 2', 'Nf3 Nf6 3', 'Nxe5 Nxe4 4', 'Qe2 Nf6 5', 'Nc6+']
+        # 3rd Pre Move: Nf6, 3rd Move: 3. Nxe5 Nxe4 4. Qe2 Nf6 5. Nc6+
+        for i in range (1, n-1):
             board.push_san(moves[i].split(" ")[0])
             board.push_san(moves[i].split(" ")[1])
+        board.push_san(moves[n-1].split(" ")[0])
         pre_move = moves[n-1].split(" ")[1]
-        move = " ".join(solution.split(" ")[(n-1)*3:])
+        # solution.split(" ") --> ['1.', 'e4', 'e5', '2.', 'Nf3', 'Nf6', '3.', 'Nxe5', 'Nxe4', '4.', 'Qe2', 'Nf6', '5.', 'Nc6+']
+        # 1->0, 2->3, 3->6, 4->9, 5->12
+        split_space = (n * 3) - 3
+        move = " ".join(solution.split(" ")[split_space:])
         return board.fen(), pre_move, move
         
 
