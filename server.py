@@ -76,11 +76,11 @@ def get_nth_sequence(fen, solution, player, n):
         return fen, pre_move, move
     
     if player == "black":
-        # PGN: 1.e4 e5 2. Nf3 Nf6 3. Nxe5 Nxe4 4. Qe2 Nf6 6. Nc6+
+        # PGN: 1. e4 e5 2. Nf3 Nf6 3. Nxe5 Nxe4 4. Qe2 Nf6 5. Nc6+
         # Black
         # Move: 1->1, 2->4, 3->7, 4->10, 5->13
         # PreMove: 1->0, 2->3, -> 6, 4->9, 5->12
-        # After Split: ['1', 'e4 e5', 'Nf3 Nf6', 'Nxe5 Nxe4', 'Qe2 Nf6', 'Nc6+']
+        # After Split: ['1', 'e4 e5', '2', 'Nf3 Nf6', '3', 'Nxe5 Nxe4', '4', 'Qe2 Nf6', '5', 'Nc6+']
         for i in range (1, n):
             board.push_san(moves[i].split(" ")[0])
             board.push_san(moves[i].split(" ")[1])
@@ -90,12 +90,13 @@ def get_nth_sequence(fen, solution, player, n):
         pre_move = solution.split(" ")[split_space-1]
         return board.fen(), pre_move, move
     else:
-        # PGN: 1.e4 e5 2. Nf3 Nf6 3. Nxe5 Nxe4 4. Qe2 Nf6 6. Nc6+
+        # PGN: 1. e4 e5 2. Nf3 Nf6 3. Nxe5 Nxe4 4. Qe2 Nf6 5. Nc6+
+        # moves = ['1', 'e4 e5', '2', 'Nf3 Nf6', '3', 'Nxe5 Nxe4', '4', 'Qe2 Nf6', '5', 'Nc6+']
         # White
         # Move: 2->3, 3->6, 4->9, 5->12
         # PreMove: 2->1, -> 4, 4->7, 5->10
-        # After Split: ['1', 'e4 e5', 'Nf3 Nf6', 'Nxe5 Nxe4', 'Qe2 Nf6', 'Nc6+']
-        for i in range (1, n-1):
+        # After Split: ['1', 'e4 e5', '2', 'Nf3 Nf6', '3', 'Nxe5 Nxe4', '4', 'Qe2 Nf6', '5', 'Nc6+']
+        for i in range (1, n):
             board.push_san(moves[i].split(" ")[0])
             board.push_san(moves[i].split(" ")[1])
         pre_move = moves[n-1].split(" ")[1]
@@ -201,6 +202,36 @@ def get_next_puzzle(names):
     return None
 
 
+def calculate_rating(result, time_taken):
+    if result == "correct":
+        if time_taken < 60:
+            return Rating.Easy
+        elif time_taken < 120:
+            return Rating.Good
+        else:
+            return Rating.Hard
+    else:
+        return Rating.Again
+
+
+def update_result_in_db(id, result, time_taken):
+    with open("db/questions_db.json", "r") as questions_db_file:
+        questions_db = json.load(questions_db_file)
+        
+    for key in questions_db.keys():
+        for question in questions_db[key]:
+            if question["id"] == id:
+                card = Card.from_dict(question["card"])
+                rating = calculate_rating(result, time_taken)
+                card, review_log = FSRS().review_card(card, rating)
+                question["card"] = card.to_dict()
+                break
+                
+    with open("db/questions_db.json", "w") as questions_db_file:
+        json.dump(questions_db, questions_db_file)
+        
+
+
 app = Flask(__name__,
             static_url_path='', 
             static_folder='web/static',
@@ -257,5 +288,13 @@ def add_puzzle():
 def get_puzzle():
     names = request.get_json()["names"]
     return jsonify(get_next_puzzle(names))
+
+
+@app.route('/update_result', methods=['POST'])
+def update_result():
+    data = request.get_json()
+    print(data)
+    update_result_in_db(data["id"], data["result"], data["time_taken"])
+    return "Result Updated Successfully!"
 
 app.run(port=5000)

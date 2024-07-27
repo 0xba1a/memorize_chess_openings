@@ -11,7 +11,7 @@ function show_alert(message, type) {
     wrapper.innerHTML = [
         `<div class="alert alert-${type} alert-dismissible text-center" role="alert">`,
         `   <div>"${message}"</div>`,
-        '   <button type="button" class="btn btn-primary mt-2" data-bs-dismiss="alert" aria-label="Close">Next</button>',
+        '   <button type="button" class="btn btn-primary mt-2" data-bs-dismiss="alert" aria-label="Close" onclick="location.reload();">Next</button>',
         '</div>'
     ].join('');
 
@@ -30,6 +30,7 @@ function get_puzzle() {
         .then(response => response.json())
         .then(data => {
             console.log(data);
+            puzzle_start_time = Date.now();
             puzzle = data;
             if (data == null || data == "" || data == {}) {
                 show_alert("No more puzzles available!", "info");
@@ -42,6 +43,7 @@ function get_puzzle() {
 get_puzzle();
 let chess = new Chess();
 let puzzle = null;
+let puzzle_start_time = null;
 let nth_move = 1;
 
 
@@ -98,7 +100,7 @@ function input_handler(event) {
                 let possible_moves = chess.moves({square: event.squareFrom, verbose: true});
                 for (const possible_move of possible_moves) {
                     if (possible_move.promotion && possible_move.to === event.squareTo) {
-                        event.chessboard.showPromotionDialog(event.squareTo, puzzle.color, (result) => {
+                        event.chessboard.showPromotionDialog(event.squareTo, puzzle.orientation, (result) => {
                             console.log("promotion result: ", result);
                             if (result.type === PROMOTION_DIALOG_RESULT_TYPE.pieceSelected) {
                                 chess.move({from: event.squareFrom, to: event.squareTo, promotion: result.piece.charAt(1)});
@@ -107,7 +109,7 @@ function input_handler(event) {
                                 });
                             }
                             else {
-                                event.chessboard.enableMoveInput(input_handler, puzzle.color);
+                                event.chessboard.enableMoveInput(input_handler, puzzle.orientation);
                                 event.chessboard.setPosition(chess.fen(), true).then(() => {
                                     update_and_validate(event, puzzle);
                                 });
@@ -120,10 +122,9 @@ function input_handler(event) {
             return !!move_result;
 
         case INPUT_EVENT_TYPE.moveInputFinished:
-            if (event.legalMove) {
-                event.chessboard.disableMoveInput();
-            }
-            else {
+            event.chessboard.disableMoveInput();
+            event.chessboard.setPosition(chess.fen(), false);
+            if (!event.legalMove) {
                 show_alert("Illegal move!", "danger");
             }
             // Disable input until the result is processed
@@ -137,11 +138,12 @@ function input_handler(event) {
 
 function get_nth_move_solution(puzzle, nth_move) {
     let moves = puzzle.solution.split(" ");
+    let position = 0;
     if (moves.length == 1) {
         return moves[0];
     }
     else {
-        if (puzzle.color == "white") {
+        if (puzzle.orientation == "white") {
             // 1, 4, 7, 10, 13, 16, 19, 22, 25, 28
             position = (nth_move-1) * 3 + 1;
         }
@@ -155,11 +157,12 @@ function get_nth_move_solution(puzzle, nth_move) {
 
 function get_nth_premove(puzzle, nth_move) {
     let moves = puzzle.solution.split(" ");
+    let position = 0;
     if (moves.length == 1) {
         return null;
     }
     else {
-        if (puzzle.color == "white") {
+        if (puzzle.orientation == "white") {
             if (nth_move == 1) {
                 return null;
             }
@@ -175,9 +178,26 @@ function get_nth_premove(puzzle, nth_move) {
 }
 
 
+function update_result(puzzle, result) {
+    let time_taken = Date.now() - puzzle_start_time;
+    time_taken = time_taken / 1000; // Convert to seconds
+    let data = {
+        "id": puzzle.id,
+        "result": result,
+        "time_taken": time_taken,
+    };
+    fetch('/update_result', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    });
+}
+
+
 // TODO: Animate the move and show result. Then get next puzzle upon user input.
 function update_and_validate(event, puzzle) {
-    const move = event.squareFrom + event.squareTo;
     let moves = chess.pgn().split(" ");
     let last_move = moves[moves.length - 1];
     
@@ -187,8 +207,8 @@ function update_and_validate(event, puzzle) {
         nth_move++;
         let next_move = get_nth_premove(puzzle, nth_move);
         if (next_move == null) {
+            update_result(puzzle, true);
             show_alert("Correct!", "success");
-            //get_puzzle();
         }
         else {
             chess.move(next_move);
@@ -196,8 +216,8 @@ function update_and_validate(event, puzzle) {
         }
     }
     else {
+        update_result(puzzle, false);
         show_alert("Incorrect!", "danger");
-        get_puzzle();
     }
 
     event.chessboard.enableMoveInput(input_handler);
