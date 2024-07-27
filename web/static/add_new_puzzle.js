@@ -1,6 +1,6 @@
 import { Chessboard, COLOR, INPUT_EVENT_TYPE } from "./node_modules/cm-chessboard/src/Chessboard.js";
 import { Markers } from "./node_modules/cm-chessboard/src/extensions/markers/Markers.js";
-import { PromotionDialog } from "./node_modules/cm-chessboard/src/extensions/promotion-dialog/PromotionDialog.js";
+import { PromotionDialog, PROMOTION_DIALOG_RESULT_TYPE } from "./node_modules/cm-chessboard/src/extensions/promotion-dialog/PromotionDialog.js";
 import { Accessibility } from "./node_modules/cm-chessboard/src/extensions/accessibility/Accessibility.js";
 import { Chess, DEFAULT_POSITION } from "./chess.js";
 
@@ -91,14 +91,15 @@ function input_handler(event) {
                 let possible_moves = chess.moves({ square: event.squareFrom, verbose: true });
                 for (const possible_move of possible_moves) {
                     if (possible_move.promotion && possible_move.to === event.squareTo) {
-                        event.chessboard.showPromotionDialog(event.squareTo, puzzle.color, (result) => {
+                        let color = document.getElementById('orientation').value == 1 ? COLOR.black : COLOR.black;
+                        event.chessboard.showPromotionDialog(event.squareTo, color, (result) => {
                             console.log("promotion result: ", result);
                             if (result.type === PROMOTION_DIALOG_RESULT_TYPE.pieceSelected) {
                                 chess.move({ from: event.squareFrom, to: event.squareTo, promotion: result.piece.charAt(1) });
                                 event.chessboard.setPosition(chess.fen(), true);
                             }
                             else {
-                                event.chessboard.enableMoveInput(input_handler, puzzle.color);
+                                event.chessboard.enableMoveInput(input_handler);
                                 event.chessboard.setPosition(chess.fen(), true);
                             }
                         });
