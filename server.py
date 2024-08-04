@@ -5,6 +5,8 @@ import threading
 from fsrs import *
 from datetime import datetime, timezone, timedelta
 import chess
+import mysql.connector
+import db_util
 
 
 def get_nth_move(fen, solution, player, n):
@@ -40,10 +42,11 @@ def get_nth_move(fen, solution, player, n):
         
 
 def split_puzzle_into_questions(puzzle):
-    category = puzzle["category"]
-    fen = puzzle["fen"]
-    player = "white" if puzzle["orientation"] == "white" else "black"
-    solution = puzzle["solution"]
+    print(puzzle)
+    puzzle_json = json.loads(puzzle["puzzle_json"])
+    fen = puzzle_json["fen"]
+    player = puzzle_json["orientation"]
+    solution = puzzle_json["solution"]
     
     questions = []
     
@@ -51,25 +54,29 @@ def split_puzzle_into_questions(puzzle):
     for n in range(1, number_of_moves):
         nth_fen, pre_move, move = get_nth_move(fen, solution, player, n)
         questions.append({
-            "category": category,
-            "fen": nth_fen,
-            "pre_move": pre_move,
-            "solution": move,
-            "hint_1": "",
-            "hint_2": "",
-            "orientation": player
+            "puzzle_id": puzzle["id"],
+            "question_json": {
+                "fen": nth_fen,
+                "pre_move": pre_move,
+                "solution": move,
+                "hint_1": "",
+                "hint_2": "",
+                "orientation": player
+            }
         })
         
     if player == "white":
         nth_fen, pre_move, move = get_nth_move(fen, solution, player, number_of_moves)
         questions.append({
-            "category": category,
-            "fen": nth_fen,
-            "pre_move": pre_move,
-            "solution": move,
-            "hint_1": "",
-            "hint_2": "",
-            "orientation": player
+            "puzzle_id": puzzle["id"],
+            "question_json": {
+                "fen": nth_fen,
+                "pre_move": pre_move,
+                "solution": move,
+                "hint_1": "",
+                "hint_2": "",
+                "orientation": player
+            }
         })
         
     return questions
@@ -116,10 +123,11 @@ def get_nth_sequence(fen, solution, player, n):
         
 
 def split_puzzle_into_question_sequences(puzzle):
-    category = puzzle["category"]
-    fen = puzzle["fen"]
-    player = "white" if puzzle["orientation"] == "white" else "black"
-    solution = puzzle["solution"]
+    print(puzzle)
+    puzzle_json = json.loads(puzzle["puzzle_json"])
+    fen = puzzle_json["fen"]
+    player = puzzle["orientation"]
+    solution = puzzle_json["solution"]
     
     sequences = []
     number_of_moves = len(solution.split(". ")) - 1
@@ -129,13 +137,15 @@ def split_puzzle_into_question_sequences(puzzle):
     for n in range(1, number_of_moves): # [1 to n-1]
         seq_fen, pre_move, moves = get_nth_sequence(fen, solution, player, n)
         sequences.append({
-            "category": category,
-            "fen": seq_fen,
-            "pre_move": pre_move,
-            "solution": moves,
-            "hint_1": "",
-            "hint_2": "",
-            "orientation": player
+            "puzzle_id": puzzle["id"],
+            "question_json": {
+                "fen": seq_fen,
+                "pre_move": pre_move,
+                "solution": moves,
+                "hint_1": "",
+                "hint_2": "",
+                "orientation": player
+            }
         })
     
     return sequences
@@ -149,75 +159,44 @@ def is_duplicate_question(question, questions_in_db):
 
 
 def add_question_to_db(question):
-    with open("db/question_id.json", "r") as question_id_file:
-        question_id = json.load(question_id_file)
-        question_id["id"] += 1
-        
-    question["id"] = question_id["id"]
-
-    with open("db/questions_db.json", "r") as questions_db_file:
-        questions_db = json.load(questions_db_file)
-        
-    key = question["category"].title()
+    card = Card()
+    question["due"] = card.due
+    question["difficulty"] = card.difficulty
+    question["last_review"] = None
+    question["question_json"]["card"] = card.to_dict()
     
-    if key in questions_db:
-        if is_duplicate_question(question, questions_db[key]):
-            print("Question Already Exists!: ", question)
-            return
-        questions_db[key].append(question)
-    else:
-        questions_db[key] = [question]
-        
-    with open("db/questions_db.json", "w") as questions_db_file:
-        json.dump(questions_db, questions_db_file)
-        
-    with open("db/question_id.json", "w") as question_id_file:
-        json.dump(question_id, question_id_file)
+    question["id"] = db_util.get_new_question_id()
+     
+    cursor = db_util.get_cursor()   
+    query = "INSERT INTO questions (id, puzzle_id, due, difficulty, last_review, question_json) VALUES (%s, %s, %s, %s, %s, %s)"
+    cursor.execute(query, (question["id"], question["puzzle_id"], question["due"], question["difficulty"], question["last_review"], json.dumps(question["question_json"])))
+    
+    db_util.commit_and_close(cursor)
+    
     
 
 def add_question(puzzle):
-    #do nothing now
-    pass
-
     questions = split_puzzle_into_questions(puzzle)
     for question in questions:
-        card = Card()
-        question["card"] = card.to_dict()
         add_question_to_db(question)
         
     questions = split_puzzle_into_question_sequences(puzzle)
     for question in questions:
-        card = Card()
-        question["card"] = card.to_dict()
         add_question_to_db(question)
 
 
 def get_next_puzzle(names):
-    with open("db/questions_db.json") as questions_db_file:
-        questions_db = json.load(questions_db_file)
-        
-    questions = []
-        
-    for name in names:
-        if name in questions_db:
-            for question in questions_db[name]:
-                card = Card.from_dict(question["card"])
-                if card.due - datetime.now(timezone.utc) < 0:
-                    questions.append(question)
-    if names:
-        if not questions:
-            return None
-        return questions[random.randint(0, len(questions)-1)]
-    
-    for name in questions_db.keys():
-        for question in questions_db[name]:
-            card = Card.from_dict(question["card"])
-            if card.due - datetime.now(timezone.utc) < timedelta(seconds=0):
-                questions.append(question)
-                
-    if not questions:
-        return None
-    return questions[random.randint(0, len(questions)-1)]
+    print(names) # not using this parameter now!
+    query = "SELECT * FROM questions WHERE due < %s"
+    cursor = db_util.get_cursor()
+    cursor.execute(query, (datetime.now(timezone.utc),))
+    overdue_questions = cursor.fetchall()
+    db_util.commit_and_close(cursor)
+    question = overdue_questions[random.randint(0, len(overdue_questions)-1)]
+    print(question)
+    question_json = json.loads(question[5]) # index 5 is question_json
+    question_json["id"] = question[0] # index 0 is id
+    return question_json
 
 
 def calculate_rating(result, time_taken):
@@ -239,22 +218,19 @@ def calculate_time_per_move(solution, time_taken):
 
 
 def update_result_in_db(id, result, time_taken):
-    with open("db/questions_db.json", "r") as questions_db_file:
-        questions_db = json.load(questions_db_file)
-        
-    for key in questions_db.keys():
-        for question in questions_db[key]:
-            if question["id"] == id:
-                card = Card.from_dict(question["card"])
-                time_taken_per_move = calculate_time_per_move(question["solution"], time_taken)
-                rating = calculate_rating(result, time_taken_per_move)
-                card, review_log = FSRS().review_card(card, rating)
-                question["card"] = card.to_dict()
-                break
-                
-    with open("db/questions_db.json", "w") as questions_db_file:
-        json.dump(questions_db, questions_db_file)
-        
+    query = "SELECT * FROM questions WHERE id = %s"
+    cursor = db_util.get_cursor()
+    cursor.execute(query, (id,))
+    question_text = cursor.fetchone()
+    question = json.loads(question_text[5])
+    card = Card.from_dict(question["card"])
+    time_taken_per_move = calculate_time_per_move(question["solution"], time_taken)
+    rating = calculate_rating(result, time_taken_per_move)
+    card, review_log = FSRS().review_card(card, rating)
+    question["card"] = card.to_dict()
+    query = "UPDATE questions SET question_json = %s WHERE id = %s"
+    cursor.execute(query, (json.dumps(question), id))
+    db_util.commit_and_close(cursor)
 
 
 app = Flask(__name__,
