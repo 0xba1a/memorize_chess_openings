@@ -1,5 +1,12 @@
 db/
 
+#if the env is in current directory itelf
+bin
+include
+lib
+lib64
+pyvenv.cfg
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
