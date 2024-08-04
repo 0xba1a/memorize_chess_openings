@@ -34,9 +34,17 @@ def commit_and_close(cursor):
     g_cursor = None
 
 def get_new_question_id():
-    #conn = mysql.connector.connect(host=server, user=uname, password=pwd, database="chess")
     cursor = get_cursor()
     cursor.execute("SELECT MAX(id) FROM questions")
+    result = cursor.fetchone()
+    max_id = result[0]
+    if result[0] is None:
+        max_id = 0
+    return max_id + 1
+
+def get_new_puzzle_id():
+    cursor = get_cursor()
+    cursor.execute("SELECT MAX(id) FROM puzzles")
     result = cursor.fetchone()
     max_id = result[0]
     if result[0] is None:

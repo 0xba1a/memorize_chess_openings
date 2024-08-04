@@ -5,7 +5,6 @@ import threading
 from fsrs import *
 from datetime import datetime, timezone, timedelta
 import chess
-import mysql.connector
 import db_util
 
 
@@ -172,10 +171,31 @@ def add_question_to_db(question):
     cursor.execute(query, (question["id"], question["puzzle_id"], question["due"], question["difficulty"], question["last_review"], json.dumps(question["question_json"])))
     
     db_util.commit_and_close(cursor)
-    
+
+
+def get_puzzle_with_id(puzzle_id):
+    cursor = db_util.get_cursor()
+    query = "SELECT * FROM puzzles WHERE id = %s"
+    cursor.execute(query, (puzzle_id,))
+    puzzle= cursor.fetchone()
+    db_util.commit_and_close(cursor)
+    if not puzzle:
+        return None
+    return {
+        "id": puzzle[0],
+        "family": puzzle[1],
+        "variation": puzzle[2],
+        "sub_variation": puzzle[3],
+        "type": puzzle[4],
+        "orientation": puzzle[5],
+        "created_at": puzzle[6],
+        "modified_at": puzzle[7],
+        "puzzle_json": puzzle[8]
+    }
     
 
-def add_question(puzzle):
+def add_question(puzzle_id):
+    puzzle = get_puzzle_with_id(puzzle_id)
     questions = split_puzzle_into_questions(puzzle)
     for question in questions:
         add_question_to_db(question)
@@ -183,6 +203,17 @@ def add_question(puzzle):
     questions = split_puzzle_into_question_sequences(puzzle)
     for question in questions:
         add_question_to_db(question)
+
+
+def get_category(puzzle_id):
+    cursor = db_util.get_cursor()
+    query = "SELECT family, variation, sub_variation FROM puzzles WHERE id = %s"
+    cursor.execute(query, (puzzle_id,))
+    result = cursor.fetchone()
+    db_util.commit_and_close(cursor)
+    if result:
+        return result[0] + ": " + result[1] + ", " + result[2]
+    return "Unknown"
 
 
 def get_next_puzzle(names):
@@ -196,6 +227,7 @@ def get_next_puzzle(names):
     print(question)
     question_json = json.loads(question[5]) # index 5 is question_json
     question_json["id"] = question[0] # index 0 is id
+    question_json["category"] = get_category(question[1]) # index 1 is puzzle_id
     return question_json
 
 
@@ -231,6 +263,44 @@ def update_result_in_db(id, result, time_taken):
     query = "UPDATE questions SET question_json = %s WHERE id = %s"
     cursor.execute(query, (json.dumps(question), id))
     db_util.commit_and_close(cursor)
+    
+
+def parse_category(category):
+    if ":" not in category:
+        return category, "", ""
+    family = category.split(":")[0].strip()
+    
+    if "," not in category:
+        return family, category.split(":")[1].strip(), ""
+    
+    variation = category.split(":")[1].split(",")[0].strip()
+    sub_variation = category.split(":")[1].split(",")[1].strip()
+    return family, variation, sub_variation
+
+
+def is_duplicate_puzzle(family, variation, sub_variation, data):
+    cursor = db_util.get_cursor()
+    orientation = data["orientation"]
+    query = "SELECT * FROM puzzles WHERE family = %s AND variation = %s AND sub_variation = %s AND orientation = %s"
+    cursor.execute(query, (family, variation, sub_variation, orientation))
+    puzzles = cursor.fetchall()
+    db_util.commit_and_close(cursor)
+    
+    for puzzle in puzzles:
+        puzzle_json = json.loads(puzzle[8])
+        if data["solution"] == puzzle_json["solution"]:
+            return True
+    return False
+
+
+def insert_new_puzzle(family, variation, sub_variation, data):
+    cursor = db_util.get_cursor()
+    id = db_util.get_new_puzzle_id()
+    puzzle_type = "trap"
+    query = "INSERT INTO puzzles (id, family, variation, sub_variation, type, orientation, created_at, puzzle_json) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+    cursor.execute(query, (id, family, variation, sub_variation, puzzle_type, data["orientation"], datetime.now(timezone.utc), json.dumps(data)))
+    db_util.commit_and_close(cursor)
+    return id
 
 
 app = Flask(__name__,
@@ -253,35 +323,18 @@ def add_puzzle():
     data = request.get_json()
     print(data)
     
-    puzzles_db = {}
-    is_new_puzzle = True
-    
     key = data["category"].title()
     print(key)
+    family, variation, sub_variation = parse_category(key)
     
-    with open("db/puzzles_db.json", "r") as puzzles_db_file:
-        puzzles_db = json.load(puzzles_db_file)
+    if (is_duplicate_puzzle(family, variation, sub_variation, data)):
+        return "Puzzle Already Exists!"
     
-    for category in puzzles_db.keys():
-        if key == category:
-            solution = data["solution"]
-            for puzzle in puzzles_db[key]:
-                if solution == puzzle["solution"]:
-                    print("Puzzle Already Exists!")
-                    return "Puzzle Already Exists!"
-            puzzles_db[key].append(data)
-            is_new_puzzle = False
-            break
+    puzzle_id = insert_new_puzzle(family, variation, sub_variation, data)
     
-    if is_new_puzzle:
-        puzzles_db[key] = [data]
-        
-    with open("db/puzzles_db.json", "w") as puzzles_db_file:
-        json.dump(puzzles_db, puzzles_db_file)
-        
-    questioning_thread = threading.Thread(target=add_question, args=(data,))
+    questioning_thread = threading.Thread(target=add_question, args=(puzzle_id,))
     questioning_thread.start()
-        
+    
     return "Puzzle Added Successfully!"
 
 
