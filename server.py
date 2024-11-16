@@ -219,13 +219,14 @@ def get_category(puzzle_id):
 def get_puzzle_ids(selected_categories):
     puzzle_ids = []
     query = "SELECT id FROM puzzles"
-    if selected_categories is not None:
+    if not (not selected_categories):
         query = query + " WHERE"
     for family in selected_categories:
         for variation in selected_categories[family]:
             # query = query + " family = '{}' AND variation = '{}' OR".format(family.replace("'", "\'"), variation.replace("'", "\'"))
             query = query + " family = \"{}\" AND variation = \"{}\" OR".format(family, variation)
-    query = query[:-2]
+    if not (not selected_categories):
+        query = query[:-2]
     print(query)
     result = db_util.execute_query(query)
     for row in result:

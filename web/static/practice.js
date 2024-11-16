@@ -78,6 +78,7 @@ function build_category_item(item) {
             <div class="accordion-body"></div></div>
             `;
     let accordion_body = category_item.children[1].children[0]
+    let check_box_index = 0
     for (const sub_variation of sub_variations) {
         let sub_variation_no_space = sub_variation.replace(/\s/g, "_").replace(/\'/g, "_");
         accordion_body.innerHTML += `
@@ -87,9 +88,10 @@ function build_category_item(item) {
             </div>
         </div>
         `;
-        accordion_body.children[0].children[0].addEventListener("click", function(event) {
+        accordion_body.children[check_box_index].children[0].addEventListener("click", function(event) {
             update_category(event.target, variation, sub_variation);
         });
+        check_box_index++;
     }
     return category_item;
 }
