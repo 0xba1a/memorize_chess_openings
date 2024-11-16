@@ -50,3 +50,10 @@ def get_new_puzzle_id():
     if result[0] is None:
         max_id = 0
     return max_id + 1
+
+def execute_query(query):
+    cursor = get_cursor()
+    cursor.execute(query)
+    result = cursor.fetchall()
+    commit_and_close(cursor)
+    return result

@@ -11,9 +11,14 @@ function show_alert(message, type) {
     wrapper.innerHTML = [
         `<div class="alert alert-${type} alert-dismissible text-center" role="alert">`,
         `   <div>"${message}"</div>`,
-        '   <button type="button" class="btn btn-primary mt-2" data-bs-dismiss="alert" aria-label="Close" onclick="location.reload();">Next</button>',
+        `   <button type="button" class="btn btn-primary mt-2" data-bs-dismiss="alert" aria-label="Close">Next</button>`,
         '</div>'
     ].join('');
+
+    const next_button = wrapper.children[0].children[1];
+    next_button.addEventListener("click", function() {
+        get_puzzle();
+    });
 
     alertPlaceholder.append(wrapper);
 }
@@ -25,7 +30,7 @@ function get_puzzle() {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({"names": []}),
+            body: JSON.stringify(selected_categories),
         })
         .then(response => response.json())
         .then(data => {
@@ -36,15 +41,86 @@ function get_puzzle() {
                 show_alert("No more puzzles available!", "info");
                 return;
             }
+            document.getElementById("category_selection_container").style.display = "none";
+            document.getElementById("puzzle_container").style.visibility = "visible";
             setup_board(data);
         });
 }
 
-get_puzzle();
+var selected_categories = {};
+function update_category(target, variation, sub_variation) {
+    let checkbox_selected = target.checked;
+    if (checkbox_selected) {
+        if (selected_categories[variation] == undefined) {
+            selected_categories[variation] = [];
+        }
+        selected_categories[variation].push(sub_variation);
+    }
+    else {
+        selected_categories[variation] = selected_categories[variation].filter(item => item !== sub_variation);
+    }
+}
+
+function build_category_item(item) {
+    let category_item = document.createElement("div");
+    category_item.classList.add("accordion-item");
+    let variation = item["variation"];
+    let variation_no_space = variation.replace(/\s/g, "_").replace(/\'/g, "_");
+    let sub_variations = item["sub_variations"];
+    // accordion title is variation. Sub-variations are checkboxes.
+    category_item.innerHTML = `
+        <h2 class="accordion-header" id="heading-${variation_no_space}">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${variation_no_space}" aria-expanded="true" aria-controls="collapse-${variation_no_space}">
+                ${variation}
+            </button>
+        </h2>
+        <div id="collapse-${variation_no_space}" class="accordion-collapse collapse" data-bs-parent="#accordion_div">
+            <div class="accordion-body"></div></div>
+            `;
+    let accordion_body = category_item.children[1].children[0]
+    for (const sub_variation of sub_variations) {
+        let sub_variation_no_space = sub_variation.replace(/\s/g, "_").replace(/\'/g, "_");
+        accordion_body.innerHTML += `
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="${variation_no_space}-${sub_variation_no_space}">
+                <label class="form-check-label" for="${variation_no_space}-${sub_variation_no_space}">${sub_variation}</label>
+            </div>
+        </div>
+        `;
+        accordion_body.children[0].children[0].addEventListener("click", function(event) {
+            update_category(event.target, variation, sub_variation);
+        });
+    }
+    return category_item;
+}
+
+function show_category() {
+    fetch('/get_categories', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log(data);
+            let category_container = document.getElementById("category_selection_container");
+            let accordion_div = document.createElement("div");
+            accordion_div.id = "accordion_div";
+            accordion_div.classList.add("accordion");
+            category_container.prepend(accordion_div);
+            for (const item of data) {
+                accordion_div.appendChild(build_category_item(item));
+            }
+        });
+}
+
+show_category();
 let chess = new Chess();
 let puzzle = null;
 let puzzle_start_time = null;
 let nth_move = 1;
+document.querySelector("button.btn-success").addEventListener("click", get_puzzle);
 
 
 let board = new Chessboard(document.getElementById('board'), {

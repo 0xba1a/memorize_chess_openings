@@ -216,13 +216,30 @@ def get_category(puzzle_id):
     return "Unknown"
 
 
-def get_next_puzzle(names):
-    print(names) # not using this parameter now!
-    query = "SELECT * FROM questions WHERE due < %s"
-    cursor = db_util.get_cursor()
-    cursor.execute(query, (datetime.now(timezone.utc),))
-    overdue_questions = cursor.fetchall()
-    db_util.commit_and_close(cursor)
+def get_puzzle_ids(selected_categories):
+    puzzle_ids = []
+    query = "SELECT id FROM puzzles"
+    if selected_categories is not None:
+        query = query + " WHERE"
+    for family in selected_categories:
+        for variation in selected_categories[family]:
+            # query = query + " family = '{}' AND variation = '{}' OR".format(family.replace("'", "\'"), variation.replace("'", "\'"))
+            query = query + " family = \"{}\" AND variation = \"{}\" OR".format(family, variation)
+    query = query[:-2]
+    print(query)
+    result = db_util.execute_query(query)
+    for row in result:
+        puzzle_ids.append(row[0])
+    return puzzle_ids            
+
+
+def get_next_puzzle(selected_categories):
+    print(selected_categories)
+    puzzle_ids = get_puzzle_ids(selected_categories)
+    query = "SELECT * FROM questions WHERE due < '%s' AND puzzle_id IN (" + ",".join(["%s"] * len(puzzle_ids)) + ")"
+    query = query % (datetime.now(timezone.utc), *puzzle_ids)
+    print(query)
+    overdue_questions = db_util.execute_query(query)
     question = overdue_questions[random.randint(0, len(overdue_questions)-1)]
     print(question)
     question_json = json.loads(question[5]) # index 5 is question_json
@@ -260,8 +277,8 @@ def update_result_in_db(id, result, time_taken):
     rating = calculate_rating(result, time_taken_per_move)
     card, review_log = FSRS().review_card(card, rating)
     question["card"] = card.to_dict()
-    query = "UPDATE questions SET question_json = %s WHERE id = %s"
-    cursor.execute(query, (json.dumps(question), id))
+    query = "UPDATE questions SET due=%s, difficulty=%s, last_review=%s, question_json=%s WHERE id = %s"
+    cursor.execute(query, (card.due, card.difficulty, card.last_review, json.dumps(question), id))
     db_util.commit_and_close(cursor)
     
 
@@ -340,8 +357,31 @@ def add_puzzle():
 
 @app.route('/get_puzzle', methods=['POST'])
 def get_puzzle():
-    names = request.get_json()["names"]
-    return jsonify(get_next_puzzle(names))
+    selected_categories = request.get_json()
+    return jsonify(get_next_puzzle(selected_categories))
+
+
+@app.route('/get_categories', methods=['GET'])
+def get_categories():
+    query = "SELECT family, variation FROM puzzles"
+    cursor = db_util.get_cursor()
+    result = cursor.execute(query)
+    categories = dict()
+    for row in cursor.fetchall():
+        if row[0] not in categories:
+            categories[row[0]] = []
+        if row[1] not in categories[row[0]]:
+            categories[row[0]].append(row[1])
+    db_util.commit_and_close(cursor)
+    result_list = list()
+    for key in categories:
+        result_list.append(
+            {
+                "variation": key,
+                "sub_variations": categories[key]
+            }
+        )
+    return jsonify(result_list)
 
 
 @app.route('/update_result', methods=['POST'])
