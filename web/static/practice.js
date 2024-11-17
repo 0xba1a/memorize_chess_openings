@@ -35,6 +35,7 @@ function get_puzzle() {
         .then(response => response.json())
         .then(data => {
             console.log(data);
+            nth_move = 1;
             puzzle_start_time = Date.now();
             puzzle = data;
             if (data == null || data == "" || data == {}) {
@@ -48,16 +49,22 @@ function get_puzzle() {
 }
 
 var selected_categories = {};
-function update_category(target, variation, sub_variation) {
-    let checkbox_selected = target.checked;
-    if (checkbox_selected) {
-        if (selected_categories[variation] == undefined) {
-            selected_categories[variation] = [];
+function update_selected_categories() {
+    let accordian_div = document.getElementById("accordion_div");
+    for (const item of accordian_div.children) {
+        let variation = item.children[0].children[0].innerText;
+        let variation_no_space = variation.replace(/\s/g, "_").replace(/\'/g, "_");
+        let sub_variations = item.children[1].children[0].children;
+        for (const sub_variation of sub_variations) {
+            let sub_variation_no_space = sub_variation.children[1].innerText.replace(/\s/g, "_").replace(/\'/g, "_");
+            let checkbox = document.getElementById(`${variation_no_space}-${sub_variation_no_space}`);
+            if (checkbox.checked) {
+                if (!selected_categories.hasOwnProperty(variation)) {
+                    selected_categories[variation] = [];
+                }
+                selected_categories[variation].push(sub_variation.innerText);
+            }
         }
-        selected_categories[variation].push(sub_variation);
-    }
-    else {
-        selected_categories[variation] = selected_categories[variation].filter(item => item !== sub_variation);
     }
 }
 
@@ -78,7 +85,6 @@ function build_category_item(item) {
             <div class="accordion-body"></div></div>
             `;
     let accordion_body = category_item.children[1].children[0]
-    let check_box_index = 0
     for (const sub_variation of sub_variations) {
         let sub_variation_no_space = sub_variation.replace(/\s/g, "_").replace(/\'/g, "_");
         accordion_body.innerHTML += `
@@ -88,10 +94,6 @@ function build_category_item(item) {
             </div>
         </div>
         `;
-        accordion_body.children[check_box_index].children[0].addEventListener("click", function(event) {
-            update_category(event.target, variation, sub_variation);
-        });
-        check_box_index++;
     }
     return category_item;
 }
@@ -122,7 +124,10 @@ let chess = new Chess();
 let puzzle = null;
 let puzzle_start_time = null;
 let nth_move = 1;
-document.querySelector("button.btn-success").addEventListener("click", get_puzzle);
+document.querySelector("button.btn-success").addEventListener("click", function() {
+    update_selected_categories();
+    get_puzzle();
+});
 
 
 let board = new Chessboard(document.getElementById('board'), {

@@ -238,6 +238,7 @@ def get_next_puzzle(selected_categories):
     print(selected_categories)
     puzzle_ids = get_puzzle_ids(selected_categories)
     query = "SELECT * FROM questions WHERE due < '%s' AND puzzle_id IN (" + ",".join(["%s"] * len(puzzle_ids)) + ")"
+    # query = "SELECT * FROM questions WHERE id=444"
     query = query % (datetime.now(timezone.utc), *puzzle_ids)
     print(query)
     overdue_questions = db_util.execute_query(query)
